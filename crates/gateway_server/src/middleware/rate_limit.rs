@@ -23,7 +23,7 @@ pub async fn rate_limit_middleware(
     match state.rate_limiters.check(ip, Instant::now()) {
         Ok(_) => next.run(req).await,
         Err(err) => {
-            let retry_after_secs = err.retry_after.as_secs();
+            let retry_after_secs = err.retry_after.as_millis();
             Response::builder()
                 .status(StatusCode::TOO_MANY_REQUESTS)
                 .header("Retry-After", retry_after_secs.to_string())

@@ -1,4 +1,4 @@
-#![allow(dead_code, unused_variables)]
+#![allow(dead_code, unused_variables, unused)]
 
 pub mod middleware;
 use crate::middleware::rate_limit::rate_limit_middleware;
@@ -25,7 +25,7 @@ pub struct AppState {
 async fn main() {
     let state = AppState {
         client: Client::new(),
-        rate_limiters: RateLimiter::new(5, 5),
+        rate_limiters: RateLimiter::new(2, 1),
     };
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
@@ -41,6 +41,7 @@ async fn main() {
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .expect("Failed to bind the address");
+
     axum::serve(
         listener,
         app.into_make_service_with_connect_info::<SocketAddr>(),
