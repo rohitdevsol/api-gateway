@@ -26,7 +26,7 @@ impl RateLimiter {
         }
     }
 
-    fn check(&self, ip_addr: IpAddr, now: Instant) -> Result<(), RateLimitError> {
+    pub fn check(&self, ip_addr: IpAddr, now: Instant) -> Result<(), RateLimitError> {
         let mut buckets = self.buckets.lock().unwrap();
 
         let bucket = buckets
