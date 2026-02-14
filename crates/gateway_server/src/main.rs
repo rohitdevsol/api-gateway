@@ -7,28 +7,22 @@ use axum::{
     http::{Request, Response},
     routing::{any, get},
 };
-use gateway_core::rate_limiter::TokenBucket;
+use gateway_core::rate_limiter::RateLimiter;
 use reqwest::{self, Client, StatusCode};
-use std::{
-    collections::HashMap,
-    net::{IpAddr, SocketAddr},
-    sync::Arc,
-    usize,
-};
-use tokio::sync::Mutex;
+use std::{net::SocketAddr, usize};
 use tracing::info;
 
 #[derive(Clone)]
 struct AppState {
     client: Client,
-    rate_limiters: Arc<Mutex<HashMap<IpAddr, TokenBucket>>>,
+    rate_limiters: RateLimiter,
 }
 
 #[tokio::main]
 async fn main() {
     let state = AppState {
         client: Client::new(),
-        rate_limiters: Arc::new(Mutex::new(HashMap::new())),
+        rate_limiters: RateLimiter::new(5, 5),
     };
     tracing_subscriber::fmt::init();
     let app = Router::new()
