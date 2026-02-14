@@ -12,7 +12,7 @@ struct TokenBucket {
 
 impl TokenBucket {
     fn new(max_capacity: u128, refill_rate: u128, now: Instant) -> Self {
-        TokenBucket {
+        Self {
             max_capacity: max_capacity,
             current_tokens: max_capacity,
             refill_rate: refill_rate,
@@ -24,22 +24,19 @@ impl TokenBucket {
         let elapsed = current_ts.duration_since(self.last_refill_time);
         let tokens_float = elapsed.as_secs_f64() * (self.refill_rate as f64);
 
-        // floored (how many to add actually)
         let tokens = tokens_float.floor() as u128;
 
         if tokens > 0 {
             let available_space = self.max_capacity - self.current_tokens;
-            let tokens_added = min(tokens, available_space);
-
-            if tokens_added > 0 {
-                self.current_tokens += tokens_added;
-                // for last_refill time
-                let secs = (tokens_added as f64) / (self.refill_rate as f64);
-                let advance = Duration::from_secs_f64(secs);
-                self.last_refill_time += advance;
+            if tokens > available_space {
+                self.current_tokens = self.max_capacity;
+                self.last_refill_time = current_ts;
+            } else {
+                self.current_tokens += tokens;
+                let secs = (tokens as f64) / (self.refill_rate as f64);
+                self.last_refill_time += Duration::from_secs_f64(secs);
             }
         }
-
         //check if the tokens are present
         if self.current_tokens > 0 {
             self.current_tokens = self.current_tokens - 1;
