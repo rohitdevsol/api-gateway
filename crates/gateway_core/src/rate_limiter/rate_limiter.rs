@@ -10,6 +10,7 @@ pub struct RateLimitError {
     pub retry_after: Duration,
 }
 
+#[derive(Clone)]
 pub struct RateLimiter {
     buckets: Arc<Mutex<HashMap<IpAddr, TokenBucket>>>,
     capacity: u128,
@@ -17,6 +18,14 @@ pub struct RateLimiter {
 }
 
 impl RateLimiter {
+    pub fn new(capacity: u128, refill_rate: u128) -> Self {
+        Self {
+            buckets: Arc::new(Mutex::new(HashMap::new())),
+            capacity,
+            refill_rate,
+        }
+    }
+
     fn check(&self, ip_addr: IpAddr, now: Instant) -> Result<(), RateLimitError> {
         let mut buckets = self.buckets.lock().unwrap();
 
