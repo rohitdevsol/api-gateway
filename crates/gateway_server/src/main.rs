@@ -2,24 +2,33 @@
 
 use axum::{
     Router,
-    body::{ Body, to_bytes },
+    body::{Body, to_bytes},
     extract::State,
-    http::{ Request, Response },
-    routing::{ any, get },
+    http::{Request, Response},
+    routing::{any, get},
 };
-use reqwest::{ self, Client, StatusCode };
-use std::{ net::SocketAddr, usize };
+use gateway_core::rate_limiter::TokenBucket;
+use reqwest::{self, Client, StatusCode};
+use std::{
+    collections::HashMap,
+    net::{IpAddr, SocketAddr},
+    sync::Arc,
+    usize,
+};
+use tokio::sync::Mutex;
 use tracing::info;
 
 #[derive(Clone)]
 struct AppState {
     client: Client,
+    rate_limiters: Arc<Mutex<HashMap<IpAddr, TokenBucket>>>,
 }
 
 #[tokio::main]
 async fn main() {
     let state = AppState {
         client: Client::new(),
+        rate_limiters: Arc::new(Mutex::new(HashMap::new())),
     };
     tracing_subscriber::fmt::init();
     let app = Router::new()
@@ -30,7 +39,9 @@ async fn main() {
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     info!("Starting API Gateway server on http://{}", addr);
 
-    let listener = tokio::net::TcpListener::bind(addr).await.expect("Failed to bind the address");
+    let listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .expect("Failed to bind the address");
     axum::serve(listener, app).await.expect("Server failed");
 }
 
@@ -40,7 +51,7 @@ async fn health() -> &'static str {
 
 async fn special_handler(
     State(state): State<AppState>,
-    req: Request<Body>
+    req: Request<Body>,
 ) -> Result<Response<Body>, StatusCode> {
     //store the method
     let method = req.method().clone();
@@ -50,20 +61,22 @@ async fn special_handler(
     let headers = req.headers().clone();
 
     //get the body
-    let body = to_bytes(req.into_body(), usize::MAX).await.expect(
-        "Failed to parse body into bytes"
-    );
+    let body = to_bytes(req.into_body(), usize::MAX)
+        .await
+        .expect("Failed to parse body into bytes");
 
     let upstream_url = String::from("https://httpbin.org");
     let url = uri.to_string();
 
     let full_url = upstream_url + &url;
 
-    let upstream = state.client
+    let upstream = state
+        .client
         .request(method, full_url)
         .headers(headers)
         .body(body)
-        .send().await
+        .send()
+        .await
         .expect("Request failed for upstream url");
 
     //convert reqwest response to axum response
@@ -72,7 +85,10 @@ async fn special_handler(
     // let headers = upstream.headers().clone();
     let body = upstream.bytes().await.expect("Can't do this");
 
-    let response = Response::builder().status(status).body(Body::from(body)).unwrap();
+    let response = Response::builder()
+        .status(status)
+        .body(Body::from(body))
+        .unwrap();
 
     Ok(response)
 }

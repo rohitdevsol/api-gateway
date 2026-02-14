@@ -1,5 +1,12 @@
-use std::time::{Duration, Instant};
+use std::{
+    cmp::min,
+    time::{Duration, Instant},
+};
 
+pub enum AllowResult {
+    Allowed,
+    Denied { retry_after: Duration },
+}
 pub struct TokenBucket {
     max_capacity: u128,
     current_tokens: u128,
@@ -17,7 +24,7 @@ impl TokenBucket {
         }
     }
 
-    pub fn allow(&mut self, current_ts: Instant) -> bool {
+    pub fn allow(&mut self, current_ts: Instant) -> AllowResult {
         let elapsed = current_ts.duration_since(self.last_refill_time);
         let tokens_float = elapsed.as_secs_f64() * (self.refill_rate as f64);
 
@@ -25,22 +32,37 @@ impl TokenBucket {
 
         if tokens > 0 {
             let available_space = self.max_capacity - self.current_tokens;
-            if tokens > available_space {
-                self.current_tokens = self.max_capacity;
-                self.last_refill_time = current_ts;
-            } else {
-                self.current_tokens += tokens;
-                let secs = (tokens as f64) / (self.refill_rate as f64);
-                self.last_refill_time += Duration::from_secs_f64(secs);
+            let tokens_added = min(available_space, tokens);
+            if tokens_added > 0 {
+                self.current_tokens += tokens_added;
+                if tokens_added == available_space {
+                    // Bucket became full so discard extra time
+                    self.last_refill_time = current_ts;
+                } else {
+                    // Partial refill so advance proportionaly
+                    let secs = (tokens_added as f64) / (self.refill_rate as f64);
+                    self.last_refill_time += Duration::from_secs_f64(secs);
+                }
             }
         }
         //check if the tokens are present
         if self.current_tokens > 0 {
             self.current_tokens = self.current_tokens - 1;
-            return true;
+            return AllowResult::Allowed;
         }
 
-        return false;
+        let token_interval = Duration::from_secs_f64(1.0 / self.refill_rate as f64); // 1. time taken to generate 1 token
+
+        // 2. difference of current time received and last refill time
+        let elapsed_time_since_last = current_ts - self.last_refill_time;
+
+        // retry after (1-2)
+        // let retry_after = token_interval - elapsed_time_since_last;
+        let retry_after = token_interval
+            .checked_sub(elapsed_time_since_last)
+            .unwrap_or(Duration::ZERO);
+
+        return AllowResult::Denied { retry_after };
     }
 }
 
@@ -54,9 +76,9 @@ pub mod tests {
         let mut bucket = TokenBucket::new(5, 5, t0);
 
         for _ in 0..5 {
-            assert!(bucket.allow(t0));
+            assert!(matches!(bucket.allow(t0), AllowResult::Allowed));
         }
-        assert!(!bucket.allow(t0));
+        assert!(matches!(bucket.allow(t0), AllowResult::Denied { .. }));
     }
 
     #[test]
@@ -64,9 +86,9 @@ pub mod tests {
         let t0 = Instant::now();
         let mut bucket = TokenBucket::new(5, 5, t0);
         for _ in 0..5 {
-            assert!(bucket.allow(t0));
+            assert!(matches!(bucket.allow(t0), AllowResult::Allowed));
         }
-        assert!(!bucket.allow(t0));
+        assert!(matches!(bucket.allow(t0), AllowResult::Denied { .. }))
     }
 
     #[test]
@@ -75,11 +97,14 @@ pub mod tests {
         let mut bucket = TokenBucket::new(5, 5, t0);
         //empty the bucket
         for _ in 1..6 {
-            assert!(bucket.allow(t0));
+            assert!(matches!(bucket.allow(t0), AllowResult::Allowed));
         }
-        assert!(!bucket.allow(t0));
+        assert!(matches!(bucket.allow(t0), AllowResult::Denied { .. }));
         //bucket empty -> check after the 200ms
-        assert!(bucket.allow(t0 + Duration::from_millis(200)));
+        assert!(matches!(
+            bucket.allow(t0 + Duration::from_millis(200)),
+            AllowResult::Allowed
+        ));
     }
 
     #[test]
@@ -88,12 +113,15 @@ pub mod tests {
         let mut bucket = TokenBucket::new(5, 5, t0);
 
         //empty the bucket
-        for _ in 1..6 {
-            assert!(bucket.allow(t0));
+        for _ in 0..5 {
+            assert!(matches!(bucket.allow(t0), AllowResult::Allowed));
         }
-        assert!(!bucket.allow(t0));
+        assert!(matches!(bucket.allow(t0), AllowResult::Denied { .. }));
         //bucket empty -> check after the 100ms
-        assert!(!bucket.allow(t0 + Duration::from_millis(100)));
+        assert!(matches!(
+            bucket.allow(t0 + Duration::from_millis(100)),
+            AllowResult::Denied { .. }
+        ));
     }
 
     #[test]
@@ -107,25 +135,30 @@ pub mod tests {
         //bucket empty -> check after 1400ms or 1.4s -> i.e allow 7 times
         t0 = t0 + Duration::from_secs_f64(1.4);
         for _ in 0..7 {
-            assert!(bucket.allow(t0));
+            assert!(matches!(bucket.allow(t0), AllowResult::Allowed));
         }
-        assert!(!bucket.allow(t0));
+        assert!(matches!(bucket.allow(t0), AllowResult::Denied { .. }));
     }
 
     #[test]
     pub fn do_not_exceed_capacity() {
-        let mut t0 = Instant::now();
+        let t0 = Instant::now();
         let mut bucket = TokenBucket::new(5, 5, t0);
 
         // empty the bucket first
         for _ in 0..5 {
-            assert!(bucket.allow(t0));
+            assert!(matches!(bucket.allow(t0), AllowResult::Allowed));
         }
 
-        t0 = t0 + Duration::from_secs(100);
+        assert!(matches!(bucket.allow(t0), AllowResult::Denied { .. }));
+
+        //jump forward 100 seconds
+        let t1 = t0 + Duration::from_secs(100);
+        // 5 rapid requests
         for _ in 0..5 {
-            assert!(bucket.allow(t0));
+            assert!(matches!(bucket.allow(t1), AllowResult::Allowed));
         }
-        assert!(!bucket.allow(t0));
+
+        assert!(matches!(bucket.allow(t1), AllowResult::Denied { .. }));
     }
 }
