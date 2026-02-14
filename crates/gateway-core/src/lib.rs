@@ -1,4 +1,7 @@
-use std::{ cmp::min, time::{ Duration, Instant } };
+use std::{
+    cmp::min,
+    time::{Duration, Instant},
+};
 
 struct TokenBucket {
     max_capacity: u128,
@@ -9,7 +12,7 @@ struct TokenBucket {
 
 impl TokenBucket {
     fn new(max_capacity: u128, refill_rate: u128, now: Instant) -> Self {
-        Self {
+        TokenBucket {
             max_capacity: max_capacity,
             current_tokens: max_capacity,
             refill_rate: refill_rate,
@@ -25,15 +28,16 @@ impl TokenBucket {
         let tokens = tokens_float.floor() as u128;
 
         if tokens > 0 {
-            self.current_tokens = min(self.current_tokens + tokens, self.max_capacity);
-            //update the refill time
+            let available_space = self.max_capacity - self.current_tokens;
+            let tokens_added = min(tokens, available_space);
 
-            //these tokens were made in how many seconds .. so we do not account extra time
-            // for last_refill time
-            let secs = (tokens as f64) / (self.refill_rate as f64);
-            let advance = Duration::from_secs_f64(secs);
-
-            self.last_refill_time += advance;
+            if tokens_added > 0 {
+                self.current_tokens += tokens_added;
+                // for last_refill time
+                let secs = (tokens_added as f64) / (self.refill_rate as f64);
+                let advance = Duration::from_secs_f64(secs);
+                self.last_refill_time += advance;
+            }
         }
 
         //check if the tokens are present
@@ -51,8 +55,83 @@ mod tests {
     use super::*;
 
     #[test]
-    fn it_works() {
-        // let result = add(2, 2);
-        // assert_eq!(result, 4);
+    fn burst_test_pass() {
+        let t0 = Instant::now();
+        let mut bucket = TokenBucket::new(5, 5, t0);
+
+        for _ in 0..5 {
+            assert!(bucket.allow(t0));
+        }
+        assert!(!bucket.allow(t0));
+    }
+
+    #[test]
+    fn burst_test_fail() {
+        let t0 = Instant::now();
+        let mut bucket = TokenBucket::new(5, 5, t0);
+        for _ in 0..5 {
+            assert!(bucket.allow(t0));
+        }
+        assert!(!bucket.allow(t0));
+    }
+
+    #[test]
+    fn refill_after_correct_time() {
+        let t0 = Instant::now();
+        let mut bucket = TokenBucket::new(5, 5, t0);
+        //empty the bucket
+        for _ in 1..6 {
+            assert!(bucket.allow(t0));
+        }
+        assert!(!bucket.allow(t0));
+        //bucket empty -> check after the 200ms
+        assert!(bucket.allow(t0 + Duration::from_millis(200)));
+    }
+
+    #[test]
+    fn no_refill_before_correct_time() {
+        let t0 = Instant::now();
+        let mut bucket = TokenBucket::new(5, 5, t0);
+
+        //empty the bucket
+        for _ in 1..6 {
+            assert!(bucket.allow(t0));
+        }
+        assert!(!bucket.allow(t0));
+        //bucket empty -> check after the 100ms
+        assert!(!bucket.allow(t0 + Duration::from_millis(100)));
+    }
+
+    #[test]
+    fn refill_proportionally() {
+        let mut t0 = Instant::now();
+        let mut bucket = TokenBucket::new(10, 5, t0);
+        //empty the bucket
+        for _ in 0..10 {
+            let _ = bucket.allow(t0);
+        }
+        //bucket empty -> check after 1400ms or 1.4s -> i.e allow 7 times
+        t0 = t0 + Duration::from_secs_f64(1.4);
+        for _ in 0..7 {
+            assert!(bucket.allow(t0));
+        }
+        assert!(!bucket.allow(t0));
+    }
+
+    #[test]
+    fn do_not_exceed_capacity() {
+        let mut t0 = Instant::now();
+        let mut bucket = TokenBucket::new(5, 5, t0);
+
+        // empty the bucket first
+        for _ in 0..5 {
+            assert!(bucket.allow(t0));
+        }
+
+        t0 = t0 + Duration::from_secs(100);
+        for _ in 0..5 {
+            assert!(bucket.allow(t0));
+        }
+        assert!(!bucket.allow(t0));
     }
 }
