@@ -1,10 +1,13 @@
 #![allow(dead_code, unused_variables)]
 
+pub mod middleware;
+use crate::middleware::rate_limit::rate_limit_middleware;
 use axum::{
     Router,
     body::{Body, to_bytes},
     extract::State,
     http::{Request, Response},
+    middleware::from_fn_with_state,
     routing::{any, get},
 };
 use gateway_core::rate_limiter::RateLimiter;
@@ -13,7 +16,7 @@ use std::{net::SocketAddr, usize};
 use tracing::info;
 
 #[derive(Clone)]
-struct AppState {
+pub struct AppState {
     client: Client,
     rate_limiters: RateLimiter,
 }
@@ -24,19 +27,26 @@ async fn main() {
         client: Client::new(),
         rate_limiters: RateLimiter::new(5, 5),
     };
-    tracing_subscriber::fmt::init();
-    let app = Router::new()
-        .route("/health", get(health))
-        .route("/{*path}", any(special_handler))
-        .with_state(state);
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     info!("Starting API Gateway server on http://{}", addr);
 
+    tracing_subscriber::fmt::init();
+    let app = Router::new()
+        .route("/health", get(health))
+        .route("/{*path}", any(special_handler))
+        .layer(from_fn_with_state(state.clone(), rate_limit_middleware))
+        .with_state(state.clone());
+
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .expect("Failed to bind the address");
-    axum::serve(listener, app).await.expect("Server failed");
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .unwrap();
 }
 
 async fn health() -> &'static str {
