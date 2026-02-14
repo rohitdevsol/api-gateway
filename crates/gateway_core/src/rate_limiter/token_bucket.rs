@@ -1,17 +1,14 @@
-use std::{
-    cmp::min,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
-struct TokenBucket {
+pub struct TokenBucket {
     max_capacity: u128,
     current_tokens: u128,
-    refill_rate: u128, //tokens per second
+    refill_rate: u128,
     last_refill_time: Instant,
 }
 
 impl TokenBucket {
-    fn new(max_capacity: u128, refill_rate: u128, now: Instant) -> Self {
+    pub fn new(max_capacity: u128, refill_rate: u128, now: Instant) -> Self {
         Self {
             max_capacity: max_capacity,
             current_tokens: max_capacity,
@@ -20,7 +17,7 @@ impl TokenBucket {
         }
     }
 
-    fn allow(&mut self, current_ts: Instant) -> bool {
+    pub fn allow(&mut self, current_ts: Instant) -> bool {
         let elapsed = current_ts.duration_since(self.last_refill_time);
         let tokens_float = elapsed.as_secs_f64() * (self.refill_rate as f64);
 
@@ -48,11 +45,11 @@ impl TokenBucket {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
 
     #[test]
-    fn burst_test_pass() {
+    pub fn burst_test_pass() {
         let t0 = Instant::now();
         let mut bucket = TokenBucket::new(5, 5, t0);
 
@@ -63,7 +60,7 @@ mod tests {
     }
 
     #[test]
-    fn burst_test_fail() {
+    pub fn burst_test_fail() {
         let t0 = Instant::now();
         let mut bucket = TokenBucket::new(5, 5, t0);
         for _ in 0..5 {
@@ -73,7 +70,7 @@ mod tests {
     }
 
     #[test]
-    fn refill_after_correct_time() {
+    pub fn refill_after_correct_time() {
         let t0 = Instant::now();
         let mut bucket = TokenBucket::new(5, 5, t0);
         //empty the bucket
@@ -86,7 +83,7 @@ mod tests {
     }
 
     #[test]
-    fn no_refill_before_correct_time() {
+    pub fn no_refill_before_correct_time() {
         let t0 = Instant::now();
         let mut bucket = TokenBucket::new(5, 5, t0);
 
@@ -100,7 +97,7 @@ mod tests {
     }
 
     #[test]
-    fn refill_proportionally() {
+    pub fn refill_proportionally() {
         let mut t0 = Instant::now();
         let mut bucket = TokenBucket::new(10, 5, t0);
         //empty the bucket
@@ -116,7 +113,7 @@ mod tests {
     }
 
     #[test]
-    fn do_not_exceed_capacity() {
+    pub fn do_not_exceed_capacity() {
         let mut t0 = Instant::now();
         let mut bucket = TokenBucket::new(5, 5, t0);
 

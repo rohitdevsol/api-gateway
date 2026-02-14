@@ -1,5 +1,5 @@
 [package]
-name = "gateway-server"
+name = "gateway_server"
 version = "0.1.0"
 edition = "2024"
 
@@ -8,5 +8,5 @@ axum = "0.8.8"
 tokio = {version="1.49.0", features=["full"]}
 tracing = "0.1.44"
 tracing-subscriber = "0.3.22"
-gateway-core = {path = "../gateway-core"}
+gateway_core = {path = "../gateway_core"}
 reqwest = "0.13.2"

@@ -1,7 +1,7 @@
 [workspace]
 members = [
-    "crates/gateway-core",
-    "crates/gateway-server"
+    "crates/gateway_core",
+    "crates/gateway_server"
 ]
 
 resolver = "3"

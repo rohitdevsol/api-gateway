@@ -291,15 +291,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "gateway-core"
+name = "gateway_core"
 version = "0.1.0"
 
 [[package]]
-name = "gateway-server"
+name = "gateway_server"
 version = "0.1.0"
 dependencies = [
  "axum",
- "gateway-core",
+ "gateway_core",
  "reqwest",
  "tokio",
  "tracing",
