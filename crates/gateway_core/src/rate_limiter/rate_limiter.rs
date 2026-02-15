@@ -48,4 +48,17 @@ where
             }
         }
     }
+
+    pub fn cleanup(&self, ttl: Duration) {
+        let mut buckets = self.buckets.lock().unwrap();
+
+        println!("::[BUCKET_COUNT]:: Before Cleanup: {}", buckets.len());
+
+        let now = Instant::now();
+        buckets.retain(|key, val| {
+            let age = now.duration_since(val.last_seen);
+            return age <= ttl;
+        });
+        println!("::[BUCKET_COUNT]:: After Cleanup: {}", buckets.len());
+    }
 }
