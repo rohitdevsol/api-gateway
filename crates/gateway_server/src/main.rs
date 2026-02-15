@@ -14,20 +14,27 @@ use axum::{
 };
 use gateway_core::rate_limiter::RateLimiter;
 use reqwest::{self, Client, StatusCode};
-use std::{net::SocketAddr, usize};
+use std::{
+    net::{IpAddr, SocketAddr},
+    usize,
+};
 use tracing::info;
 
 #[derive(Clone)]
 pub struct AppState {
     client: Client,
-    rate_limiters: RateLimiter,
+    global_limiter: RateLimiter<()>,
+    ip_limiter: RateLimiter<IpAddr>,
+    route_limiter: RateLimiter<String>,
 }
 
 #[tokio::main]
 async fn main() {
     let state = AppState {
         client: Client::new(),
-        rate_limiters: RateLimiter::new(2, 2),
+        ip_limiter: RateLimiter::<IpAddr>::new(3, 3),
+        global_limiter: RateLimiter::<()>::new(4, 4),
+        route_limiter: RateLimiter::<String>::new(3, 2),
     };
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
