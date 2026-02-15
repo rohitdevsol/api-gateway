@@ -1,4 +1,4 @@
-use crate::rate_limiter::{AllowResult, TokenBucket};
+use crate::rate_limiter::{AllowResult, TokenBucket, token_bucket::BucketState};
 use std::{
     collections::HashMap,
     net::IpAddr,
@@ -8,6 +8,7 @@ use std::{
 
 pub struct RateLimitError {
     pub retry_after: Duration,
+    pub snapshot: BucketState,
 }
 
 #[derive(Clone)]
@@ -26,7 +27,7 @@ impl RateLimiter {
         }
     }
 
-    pub fn check(&self, ip_addr: IpAddr, now: Instant) -> Result<(), RateLimitError> {
+    pub fn check(&self, ip_addr: IpAddr, now: Instant) -> Result<BucketState, RateLimitError> {
         let mut buckets = self.buckets.lock().unwrap();
 
         let bucket = buckets
@@ -34,14 +35,13 @@ impl RateLimiter {
             .or_insert_with(|| TokenBucket::new(self.capacity, self.refill_rate, now));
 
         match bucket.allow(now) {
-            AllowResult::Allowed => {}
+            AllowResult::Allowed => return Ok(bucket.state(now)),
             AllowResult::Denied { retry_after } => {
                 return Err(RateLimitError {
-                    retry_after: retry_after,
+                    retry_after,
+                    snapshot: bucket.state(now),
                 });
             }
         }
-
-        Ok(())
     }
 }
