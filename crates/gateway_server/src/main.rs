@@ -17,9 +17,13 @@ use gateway_core::rate_limiter::RateLimiter;
 use reqwest::{self, Client, StatusCode};
 use std::{
     net::{IpAddr, SocketAddr},
+    time::Duration,
     usize,
 };
 use tracing::info;
+
+const CLEANUP_INTERVAL: Duration = Duration::from_secs(60);
+const BUCKET_TTL: Duration = Duration::from_secs(300);
 
 #[derive(Clone)]
 pub struct AppState {
@@ -38,6 +42,21 @@ async fn main() {
         route_limiter: RateLimiter::<String>::new(config.route_capacity, config.route_refill_rate),
         ip_limiter: RateLimiter::<IpAddr>::new(config.ip_capacity, config.ip_refill_rate),
     };
+
+    let global = state.global_limiter.clone();
+    let route = state.route_limiter.clone();
+    let ip = state.ip_limiter.clone();
+
+    //cleanup stale entries in each bucket
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(CLEANUP_INTERVAL).await;
+            global.cleanup(BUCKET_TTL);
+            route.cleanup(BUCKET_TTL);
+            ip.cleanup(BUCKET_TTL);
+            tracing::debug!("bucket cleanup executed");
+        }
+    });
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     info!("Starting API Gateway server on http://{}", addr);
