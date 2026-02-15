@@ -7,6 +7,14 @@ pub enum AllowResult {
     Allowed,
     Denied { retry_after: Duration },
 }
+
+//adding a snapshot
+pub struct BucketState {
+    pub limit: u128,
+    pub remaining: u128,
+    pub reset_after: Duration,
+}
+
 pub struct TokenBucket {
     max_capacity: u128,
     current_tokens: u128,
@@ -14,6 +22,30 @@ pub struct TokenBucket {
     last_refill_time: Instant,
 }
 
+impl TokenBucket {
+    pub fn state(&self, now: Instant) -> BucketState {
+        let token_interval = Duration::from_secs_f64(1.0 / self.refill_rate as f64);
+        let elapsed = now - self.last_refill_time;
+
+        let mut reset_after = if elapsed >= token_interval {
+            Duration::ZERO
+        } else {
+            token_interval
+                .checked_sub(elapsed)
+                .unwrap_or(Duration::ZERO)
+        };
+
+        if self.current_tokens == self.max_capacity {
+            reset_after = Duration::ZERO;
+        }
+
+        BucketState {
+            limit: self.max_capacity,
+            remaining: self.current_tokens,
+            reset_after,
+        }
+    }
+}
 impl TokenBucket {
     pub fn new(max_capacity: u128, refill_rate: u128, now: Instant) -> Self {
         Self {
