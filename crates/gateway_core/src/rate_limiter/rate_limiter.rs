@@ -12,13 +12,16 @@ pub struct RateLimitError {
 }
 
 #[derive(Clone)]
-pub struct RateLimiter {
-    buckets: Arc<Mutex<HashMap<IpAddr, TokenBucket>>>,
+pub struct RateLimiter<K> {
+    buckets: Arc<Mutex<HashMap<K, TokenBucket>>>,
     capacity: u128,
     refill_rate: u128,
 }
 
-impl RateLimiter {
+impl<K> RateLimiter<K>
+where
+    K: std::cmp::Eq + std::hash::Hash,
+{
     pub fn new(capacity: u128, refill_rate: u128) -> Self {
         Self {
             buckets: Arc::new(Mutex::new(HashMap::new())),
@@ -26,12 +29,11 @@ impl RateLimiter {
             refill_rate,
         }
     }
-
-    pub fn check(&self, ip_addr: IpAddr, now: Instant) -> Result<BucketState, RateLimitError> {
+    pub fn check(&self, key: K, now: Instant) -> Result<BucketState, RateLimitError> {
         let mut buckets = self.buckets.lock().unwrap();
 
         let bucket = buckets
-            .entry(ip_addr)
+            .entry(key)
             .or_insert_with(|| TokenBucket::new(self.capacity, self.refill_rate, now));
 
         match bucket.allow(now) {
