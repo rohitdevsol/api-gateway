@@ -20,6 +20,7 @@ pub struct TokenBucket {
     current_tokens: u128,
     refill_rate: u128,
     last_refill_time: Instant,
+    pub last_seen: Instant,
 }
 
 impl TokenBucket {
@@ -53,6 +54,7 @@ impl TokenBucket {
             current_tokens: max_capacity,
             refill_rate: refill_rate,
             last_refill_time: now,
+            last_seen: now,
         }
     }
 

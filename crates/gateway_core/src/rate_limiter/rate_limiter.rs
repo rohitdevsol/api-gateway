@@ -36,6 +36,8 @@ where
             .entry(key)
             .or_insert_with(|| TokenBucket::new(self.capacity, self.refill_rate, now));
 
+        bucket.last_seen = now; //update the last seen here..so TokenBucket remains agnostic
+
         match bucket.allow(now) {
             AllowResult::Allowed => return Ok(bucket.state(now)),
             AllowResult::Denied { retry_after } => {
