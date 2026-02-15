@@ -44,7 +44,14 @@ pub async fn rate_limit_middleware(
     next: Next,
 ) -> Response {
     let ip = addr.ip();
-    let route = req.uri().path().to_string();
+    let route = req
+        .uri()
+        .path()
+        .to_string()
+        .split('/')
+        .find(|segment| !segment.is_empty())
+        .unwrap_or("root")
+        .to_string();
     let now = Instant::now();
 
     let global_snapshot = match state.global_limiter.check((), now) {
@@ -69,7 +76,14 @@ pub async fn rate_limit_middleware(
     };
 
     let mut response = next.run(req).await;
-    attach_headers(&mut response, &ip_snapshot);
+    // attach the header of the snapshot that have least remaining
 
-    response
+    let effective_snapshot = {
+        let mut snapshots = [&global_snapshot, &route_snapshot, &ip_snapshot];
+        snapshots.sort_by_key(|s| s.remaining);
+        snapshots[0]
+    };
+    attach_headers(&mut response, effective_snapshot);
+
+    return response;
 }
