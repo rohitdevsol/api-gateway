@@ -1,9 +1,10 @@
 #![allow(dead_code, unused_variables, unused)]
 
+pub mod config;
 pub mod http;
 pub mod middleware;
 
-use crate::middleware::rate_limit::rate_limit_middleware;
+use crate::{config::gateway_config::GatewayConfig, middleware::rate_limit::rate_limit_middleware};
 use axum::{
     Router,
     body::{Body, to_bytes},
@@ -30,11 +31,12 @@ pub struct AppState {
 
 #[tokio::main]
 async fn main() {
+    let config = GatewayConfig::from_env().expect("Invalid Gateway Config");
     let state = AppState {
         client: Client::new(),
-        ip_limiter: RateLimiter::<IpAddr>::new(3, 3),
-        global_limiter: RateLimiter::<()>::new(4, 4),
-        route_limiter: RateLimiter::<String>::new(3, 2),
+        global_limiter: RateLimiter::<()>::new(config.global_capacity, config.global_refill_rate),
+        route_limiter: RateLimiter::<String>::new(config.route_capacity, config.route_refill_rate),
+        ip_limiter: RateLimiter::<IpAddr>::new(config.ip_capacity, config.ip_refill_rate),
     };
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
