@@ -1,6 +1,8 @@
 #![allow(dead_code, unused_variables, unused)]
 
+pub mod http;
 pub mod middleware;
+
 use crate::middleware::rate_limit::rate_limit_middleware;
 use axum::{
     Router,
@@ -25,7 +27,7 @@ pub struct AppState {
 async fn main() {
     let state = AppState {
         client: Client::new(),
-        rate_limiters: RateLimiter::new(2, 1),
+        rate_limiters: RateLimiter::new(2, 2),
     };
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
