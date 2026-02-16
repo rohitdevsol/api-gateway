@@ -1,11 +1,12 @@
 use std::env;
 
-static GLOBAL_CAPACITY_DEFAULT: u128 = 100000;
-static GLOBAL_REFILL_RATE_DEFAULT: u128 = 10000;
-static IP_CAPACITY_DEFAULT: u128 = 5;
-static IP_REFILL_RATE_DEFAULT: u128 = 2;
-static ROUTE_CAPACITY_DEFAULT: u128 = 100000;
-static ROUTE_REFILL_RATE_DEFAULT: u128 = 10000;
+static GLOBAL_CAPACITY_DEFAULT: u128 = 1;
+static GLOBAL_REFILL_RATE_DEFAULT: u128 = 1;
+static IP_CAPACITY_DEFAULT: u128 = 1;
+static IP_REFILL_RATE_DEFAULT: u128 = 1;
+static ROUTE_CAPACITY_DEFAULT: u128 = 1;
+static ROUTE_REFILL_RATE_DEFAULT: u128 = 1;
+// static UPSTREAM_BASE_URL: &'static str = "Hello";
 
 #[derive(Clone)]
 pub struct GatewayConfig {
@@ -28,14 +29,14 @@ pub enum ConfigError {
 impl GatewayConfig {
     pub fn from_env() -> Result<Self, ConfigError> {
         Ok(Self {
-            global_capacity: Self::read_u128("GLOBAL_CAPACITY", 1000),
-            global_refill_rate: Self::read_u128("GLOBAL_REFILL_RATE", 20),
+            global_capacity: Self::read_u128("GLOBAL_CAPACITY", GLOBAL_CAPACITY_DEFAULT),
+            global_refill_rate: Self::read_u128("GLOBAL_REFILL_RATE", GLOBAL_REFILL_RATE_DEFAULT),
 
-            ip_capacity: Self::read_u128("IP_CAPACITY", 100),
-            ip_refill_rate: Self::read_u128("IP_REFILL_RATE", 10),
+            ip_capacity: Self::read_u128("IP_CAPACITY", IP_CAPACITY_DEFAULT),
+            ip_refill_rate: Self::read_u128("IP_REFILL_RATE", IP_REFILL_RATE_DEFAULT),
 
-            route_capacity: Self::read_u128("ROUTE_CAPACITY", 50),
-            route_refill_rate: Self::read_u128("ROUTE_REFILL_RATE", 15),
+            route_capacity: Self::read_u128("ROUTE_CAPACITY", ROUTE_CAPACITY_DEFAULT),
+            route_refill_rate: Self::read_u128("ROUTE_REFILL_RATE", ROUTE_REFILL_RATE_DEFAULT),
 
             upstream_base_url: Self::read_string("UPSTREAM_BASE_URL", "https://httpbin.org"),
         })
