@@ -150,6 +150,7 @@ async fn special_handler(
         state.config.upstream_base_url.trim_end_matches('/'),
         path_and_query.trim_start_matches('/')
     );
+    println!("{}", full_url);
 
     let upstream = state
         .client
@@ -176,14 +177,14 @@ async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse {
     let m = &state.metrics;
 
     let body = format!(
-        r#"{{
-  "total_requests": {},
-  "total_allowed": {},
-  "total_rate_limited": {},
-  "global_rate_limited": {},
-  "route_rate_limited": {},
-  "ip_rate_limited": {}
-}}"#,
+        r#"
+        gateway_total_requests {}
+        gateway_total_allowed {}
+        gateway_total_rate_limited {}
+        gateway_global_rate_limited {}
+        gateway_route_rate_limited {}
+        gateway_ip_rate_limited {}
+    "#,
         m.total_requests.load(Ordering::Relaxed),
         m.total_allowed.load(Ordering::Relaxed),
         m.total_rate_limited.load(Ordering::Relaxed),
@@ -192,5 +193,9 @@ async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse {
         m.ip_rate_limited.load(Ordering::Relaxed),
     );
 
-    (StatusCode::OK, body)
+    (
+        StatusCode::OK,
+        [("Content-Type", "text/plain; version=0.0.4")],
+        body,
+    )
 }
