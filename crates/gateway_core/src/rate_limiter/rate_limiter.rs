@@ -1,8 +1,8 @@
 use crate::rate_limiter::{AllowResult, TokenBucket, token_bucket::BucketState};
+use dashmap::DashMap;
 use std::{
-    collections::HashMap,
     net::IpAddr,
-    sync::{Arc, Mutex},
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -13,7 +13,7 @@ pub struct RateLimitError {
 
 #[derive(Clone)]
 pub struct RateLimiter<K> {
-    buckets: Arc<Mutex<HashMap<K, TokenBucket>>>,
+    buckets: Arc<DashMap<K, TokenBucket>>,
     capacity: u128,
     refill_rate: u128,
 }
@@ -24,15 +24,14 @@ where
 {
     pub fn new(capacity: u128, refill_rate: u128) -> Self {
         Self {
-            buckets: Arc::new(Mutex::new(HashMap::new())),
+            buckets: Arc::new(DashMap::new()),
             capacity,
             refill_rate,
         }
     }
     pub fn check(&self, key: K, now: Instant) -> Result<BucketState, RateLimitError> {
-        let mut buckets = self.buckets.lock().unwrap();
-
-        let bucket = buckets
+        let mut bucket = self
+            .buckets
             .entry(key)
             .or_insert_with(|| TokenBucket::new(self.capacity, self.refill_rate, now));
 
@@ -50,15 +49,12 @@ where
     }
 
     pub fn cleanup(&self, ttl: Duration) {
-        let mut buckets = self.buckets.lock().unwrap();
-
-        println!("::[BUCKET_COUNT]:: Before Cleanup: {}", buckets.len());
+        println!("::[BUCKET_COUNT]:: Before Cleanup: {}", self.buckets.len());
 
         let now = Instant::now();
-        buckets.retain(|key, val| {
-            let age = now.duration_since(val.last_seen);
-            return age <= ttl;
+        self.buckets.retain(|_, bucket| {
+            return now.duration_since(bucket.last_seen) <= ttl;
         });
-        println!("::[BUCKET_COUNT]:: After Cleanup: {}", buckets.len());
+        println!("::[BUCKET_COUNT]:: After Cleanup: {}", self.buckets.len());
     }
 }
