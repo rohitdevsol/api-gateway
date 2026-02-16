@@ -1,40 +1,48 @@
-use std::{net::SocketAddr, sync::atomic::Ordering, time::Instant};
-
 use crate::{AppState, http::errors::RateLimitHttpError, metrics};
 use axum::{
     body::Body,
     extract::{ConnectInfo, State},
-    http::Request,
+    http::{HeaderName, HeaderValue, Request},
     middleware::Next,
     response::{IntoResponse, Response},
 };
+use std::{net::SocketAddr, sync::atomic::Ordering, time::Instant};
 
 use gateway_core::rate_limiter::{rate_limiter::RateLimitError, token_bucket::BucketState};
 use reqwest::StatusCode;
 
 fn attach_headers(response: &mut Response<Body>, snapshot: &BucketState) {
     let headers = response.headers_mut();
+
     headers.insert(
-        "X-RateLimit-Limit",
-        snapshot.limit.to_string().parse().unwrap(),
+        HeaderName::from_static("ratelimit-limit"),
+        HeaderValue::from_str(&snapshot.limit.to_string()).unwrap(),
     );
+
     headers.insert(
-        "X-RateLimit-Remaining",
-        snapshot.remaining.to_string().parse().unwrap(),
+        HeaderName::from_static("ratelimit-remaining"),
+        HeaderValue::from_str(&snapshot.remaining.to_string()).unwrap(),
     );
+
+    // seconds until next token not next window boundary
     headers.insert(
-        "X-RateLimit-Reset",
-        snapshot.reset_after.as_secs().to_string().parse().unwrap(),
+        HeaderName::from_static("ratelimit-reset"),
+        HeaderValue::from_str(&snapshot.reset_after.as_secs().to_string()).unwrap(),
     );
 }
 
-fn rate_limit_response(err: RateLimitError) -> Response {
-    let mut response = RateLimitHttpError {
+fn build_rate_limit_response(err: RateLimitError) -> (Response<Body>, BucketState) {
+    let snapshot = err.snapshot;
+
+    let response = RateLimitHttpError {
         retry_after_ms: err.retry_after.as_millis() as u64,
+        ratelimit_limit: snapshot.limit as u64,
+        ratelimit_remaining: snapshot.remaining as u64,
+        ratelimit_reset: snapshot.reset_after.as_secs(),
     }
     .into_response();
-    attach_headers(&mut response, &err.snapshot);
-    return response;
+
+    (response, snapshot)
 }
 
 fn inc_global_limit(state: &AppState) {
@@ -105,7 +113,9 @@ pub async fn rate_limit_middleware(
         Err(err) => {
             inc_global_limit(&state);
             tracing::warn!(limiter = "global", decision = "denied");
-            return rate_limit_response(err);
+            let (mut response, snapshot) = build_rate_limit_response(err);
+            attach_headers(&mut response, &snapshot);
+            return response;
         }
     };
 
@@ -114,7 +124,9 @@ pub async fn rate_limit_middleware(
         Err(err) => {
             inc_route_limit(&state);
             tracing::warn!(limiter = "route", decision = "denied");
-            return rate_limit_response(err);
+            let (mut response, snapshot) = build_rate_limit_response(err);
+            attach_headers(&mut response, &snapshot);
+            return response;
         }
     };
 
@@ -126,7 +138,9 @@ pub async fn rate_limit_middleware(
         Err(err) => {
             inc_ip_limit(&state);
             tracing::warn!(limiter = "ip", decision = "denied");
-            return rate_limit_response(err);
+            let (mut response, snapshot) = build_rate_limit_response(err);
+            attach_headers(&mut response, &snapshot);
+            return response;
         }
     };
 
