@@ -8,7 +8,7 @@ use axum::{
 };
 use std::{net::SocketAddr, sync::atomic::Ordering, time::Instant};
 
-use gateway_core::rate_limiter::{rate_limiter::RateLimitError, token_bucket::BucketState};
+use gateway_core::rate_limiter::{algorithm::BucketState, rate_limiter::RateLimitError};
 use reqwest::StatusCode;
 
 fn attach_headers(response: &mut Response<Body>, snapshot: &BucketState) {
