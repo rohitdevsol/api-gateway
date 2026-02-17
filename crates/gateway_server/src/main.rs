@@ -18,7 +18,8 @@ use axum::{
     response::IntoResponse,
     routing::{any, get},
 };
-use gateway_core::rate_limiter::RateLimiter;
+use gateway_core::rate_limiter::{RateLimiter, TokenBucket};
+
 use reqwest::Client;
 use std::{
     net::{IpAddr, SocketAddr},
@@ -28,6 +29,8 @@ use std::{
 
 use tracing::info;
 
+type DefaultLimiter<K> = RateLimiter<K, TokenBucket>;
+
 const CLEANUP_INTERVAL: Duration = Duration::from_secs(60);
 const BUCKET_TTL: Duration = Duration::from_secs(300);
 
@@ -35,9 +38,9 @@ const BUCKET_TTL: Duration = Duration::from_secs(300);
 pub struct AppState {
     client: Client,
     config: GatewayConfig,
-    global_limiter: RateLimiter<()>,
-    ip_limiter: RateLimiter<IpAddr>,
-    route_limiter: RateLimiter<String>,
+    global_limiter: DefaultLimiter<()>,
+    ip_limiter: DefaultLimiter<IpAddr>,
+    route_limiter: DefaultLimiter<String>,
     metrics: Arc<GatewayMetrices>,
 }
 
@@ -54,9 +57,15 @@ async fn main() {
     let state = AppState {
         client,
         config: config.clone(),
-        global_limiter: RateLimiter::<()>::new(config.global_capacity, config.global_refill_rate),
-        route_limiter: RateLimiter::<String>::new(config.route_capacity, config.route_refill_rate),
-        ip_limiter: RateLimiter::<IpAddr>::new(config.ip_capacity, config.ip_refill_rate),
+        global_limiter: DefaultLimiter::<()>::new(
+            config.global_capacity,
+            config.global_refill_rate,
+        ),
+        route_limiter: DefaultLimiter::<String>::new(
+            config.route_capacity,
+            config.route_refill_rate,
+        ),
+        ip_limiter: DefaultLimiter::<IpAddr>::new(config.ip_capacity, config.ip_refill_rate),
         metrics: metrics.clone(),
     };
 
@@ -150,8 +159,7 @@ async fn special_handler(
         state.config.upstream_base_url.trim_end_matches('/'),
         path_and_query.trim_start_matches('/')
     );
-    println!("{}", full_url);
-
+    tracing::debug!(%full_url);
     let upstream = state
         .client
         .request(method, full_url)
