@@ -5,3 +5,9 @@ edition = "2024"
 
 [dependencies]
 dashmap ="5"
+
+[features]
+default = ["token_bucket"]
+token_bucket = []
+sliding_log = []
+sliding_counter = []
