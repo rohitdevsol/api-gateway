@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/gateway_core",
+    "crates/gateway_loadgen",
     "crates/gateway_server"
 ]
 

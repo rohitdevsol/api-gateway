@@ -1,0 +1,11 @@
+[package]
+name = "gateway_loadgen"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = "4.5.59"
+clap_derive = { version = "4.0.0-rc.1" }
+hdrhistogram = "7.5.4"
+reqwest = "0.13.2"
+tokio = {version="1.49.0", features=["full"]}
