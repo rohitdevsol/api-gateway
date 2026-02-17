@@ -1,11 +1,9 @@
 use clap::Parser;
+use clap_derive::Parser;
 use hdrhistogram::Histogram;
 use rand::Rng;
-use std::time::Duration;
-use tokio::{
-    sync::mpsc,
-    time::{Instant, sleep_until},
-};
+use std::{sync::Arc, time::Duration};
+use tokio::time::{Instant, sleep_until};
 
 #[derive(Parser, Debug)]
 #[command(version, about = "High-performance open-loop load tester")]
@@ -29,7 +27,6 @@ struct Args {
     csv: bool,
 }
 
-#[derive(Default)]
 struct WorkerStats {
     histogram: Histogram<u64>,
     success_2xx: u64,
@@ -50,13 +47,14 @@ async fn run(args: Args) {
         .build()
         .unwrap();
 
-    let (tx, mut rx) = mpsc::channel::<Instant>(100_000);
+    let (tx, rx) = tokio::sync::mpsc::channel::<Instant>(100_000);
+    let rx = Arc::new(tokio::sync::Mutex::new(rx));
 
     // Spawn worker pool
     let mut worker_handles = Vec::new();
 
     for _ in 0..args.workers {
-        let mut rx = rx.clone();
+        let rx = rx.clone();
         let client = client.clone();
         let base_url = args.url.clone();
         let routes = args.routes;
@@ -64,10 +62,13 @@ async fn run(args: Args) {
         worker_handles.push(tokio::spawn(async move {
             let mut stats = WorkerStats {
                 histogram: Histogram::<u64>::new(3).unwrap(),
-                ..Default::default()
+                success_2xx: 0,
+                rate_limited_429: 0,
+                server_5xx: 0,
+                network_errors: 0,
             };
 
-            while let Some(scheduled_at) = rx.recv().await {
+            while let Some(scheduled_at) = rx.lock().await.recv().await {
                 let url = weighted_url(&base_url, routes);
                 let ip = random_ip();
 
