@@ -3,18 +3,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-pub enum AllowResult {
-    Allowed,
-    Denied { retry_after: Duration },
-}
+use crate::rate_limiter::algorithm::{AllowResult, BucketState, RateLimitAlgorithm};
 
-//adding a snapshot
-pub struct BucketState {
-    pub limit: u128,
-    pub remaining: u128,
-    pub reset_after: Duration,
-}
-
+#[derive(Clone)]
 pub struct TokenBucket {
     max_capacity: u128,
     current_tokens: u128,
@@ -23,7 +14,34 @@ pub struct TokenBucket {
     pub last_seen: Instant,
 }
 
+impl RateLimitAlgorithm for TokenBucket {
+    fn new(capacity: u128, refill_rate: u128, now: Instant) -> Self {
+        TokenBucket::new(capacity, refill_rate, now)
+    }
+    fn allow(&mut self, now: Instant) -> AllowResult {
+        TokenBucket::allow(self, now)
+    }
+    fn state(&self, now: Instant) -> BucketState {
+        TokenBucket::state(self, now)
+    }
+    fn last_seen(&self) -> Instant {
+        self.last_seen
+    }
+    fn set_last_seen(&mut self, now: Instant) {
+        self.last_seen = now;
+    }
+}
 impl TokenBucket {
+    pub fn new(max_capacity: u128, refill_rate: u128, now: Instant) -> Self {
+        Self {
+            max_capacity: max_capacity,
+            current_tokens: max_capacity,
+            refill_rate: refill_rate,
+            last_refill_time: now,
+            last_seen: now,
+        }
+    }
+
     pub fn state(&self, now: Instant) -> BucketState {
         let token_interval = Duration::from_secs_f64(1.0 / self.refill_rate as f64);
         let elapsed = now - self.last_refill_time;
@@ -44,17 +62,6 @@ impl TokenBucket {
             limit: self.max_capacity,
             remaining: self.current_tokens,
             reset_after,
-        }
-    }
-}
-impl TokenBucket {
-    pub fn new(max_capacity: u128, refill_rate: u128, now: Instant) -> Self {
-        Self {
-            max_capacity: max_capacity,
-            current_tokens: max_capacity,
-            refill_rate: refill_rate,
-            last_refill_time: now,
-            last_seen: now,
         }
     }
 
