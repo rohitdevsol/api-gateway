@@ -7,6 +7,7 @@ static IP_REFILL_RATE_DEFAULT: u128 = 1;
 static ROUTE_CAPACITY_DEFAULT: u128 = 1;
 static ROUTE_REFILL_RATE_DEFAULT: u128 = 1;
 // static UPSTREAM_BASE_URL: &'static str = "Hello";
+static RATE_LIMITER_ALGO_DEFAULT: &'static str = "token_bucket";
 
 #[derive(Clone)]
 pub struct GatewayConfig {
@@ -17,6 +18,7 @@ pub struct GatewayConfig {
     pub route_capacity: u128,
     pub route_refill_rate: u128,
     pub upstream_base_url: String,
+    pub algorithm: String,
 }
 
 #[derive(Debug)]
@@ -39,6 +41,8 @@ impl GatewayConfig {
             route_refill_rate: Self::read_u128("ROUTE_REFILL_RATE", ROUTE_REFILL_RATE_DEFAULT),
 
             upstream_base_url: Self::read_string("UPSTREAM_BASE_URL", "https://httpbin.org"),
+
+            algorithm: Self::read_string("RATE_LIMITER_ALGO", RATE_LIMITER_ALGO_DEFAULT),
         })
     }
     fn read_u128(key: &str, default: u128) -> u128 {
