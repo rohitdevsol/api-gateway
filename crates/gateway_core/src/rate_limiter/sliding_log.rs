@@ -12,6 +12,21 @@ pub struct SlidingLog {
     pub last_seen: Instant,
 }
 
+impl RateLimitAlgorithm for SlidingLog {
+    fn allow(&mut self, now: Instant) -> AllowResult {
+        SlidingLog::allow(self, now)
+    }
+    fn state(&self, now: Instant) -> BucketState {
+        SlidingLog::state(self, now)
+    }
+    fn last_seen(&self) -> Instant {
+        self.last_seen
+    }
+    fn set_last_seen(&mut self, now: Instant) {
+        self.last_seen = now;
+    }
+}
+
 impl SlidingLog {
     pub fn new(capacity: u128, window_seconds: u128, now: Instant) -> Self {
         Self {
@@ -21,9 +36,7 @@ impl SlidingLog {
             last_seen: now,
         }
     }
-}
 
-impl RateLimitAlgorithm for SlidingLog {
     fn allow(&mut self, now: Instant) -> AllowResult {
         self.last_seen = now;
 
@@ -64,13 +77,5 @@ impl RateLimitAlgorithm for SlidingLog {
             remaining,
             reset_after,
         }
-    }
-
-    fn last_seen(&self) -> Instant {
-        self.last_seen
-    }
-
-    fn set_last_seen(&mut self, now: Instant) {
-        self.last_seen = now;
     }
 }
