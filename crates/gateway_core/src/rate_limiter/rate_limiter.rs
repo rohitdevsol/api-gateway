@@ -1,4 +1,8 @@
-use crate::rate_limiter::algorithm::{AllowResult, BucketState, RateLimitAlgorithm};
+use crate::rate_limiter::{
+    TokenBucket,
+    algorithm::{self, AllowResult, BucketState, RateLimitAlgorithm},
+    sliding_log::SlidingLog,
+};
 use dashmap::DashMap;
 use std::{
     net::IpAddr,
@@ -12,25 +16,32 @@ pub struct RateLimitError {
 }
 
 #[derive(Clone)]
-pub struct RateLimiter<K, A>
-where
-    A: RateLimitAlgorithm,
-{
-    buckets: Arc<DashMap<K, A>>,
-    capacity: u128,
-    refill_rate: u128,
+pub enum AlgorithmType {
+    TokenBucket,
+    SlidingLog,
 }
 
-impl<K, A> RateLimiter<K, A>
+#[derive(Clone)]
+pub struct RateLimiter<K>
 where
     K: Eq + std::hash::Hash,
-    A: RateLimitAlgorithm,
 {
-    pub fn new(capacity: u128, refill_rate: u128) -> Self {
+    buckets: Arc<DashMap<K, Box<dyn RateLimitAlgorithm>>>,
+    capacity: u128,
+    refill_rate: u128,
+    algorithm: AlgorithmType,
+}
+
+impl<K> RateLimiter<K>
+where
+    K: Eq + std::hash::Hash,
+{
+    pub fn new(capacity: u128, refill_rate: u128, algorithm: AlgorithmType) -> Self {
         Self {
             buckets: Arc::new(DashMap::new()),
             capacity,
             refill_rate,
+            algorithm,
         }
     }
 
@@ -38,8 +49,16 @@ where
         let mut bucket = self
             .buckets
             .entry(key)
-            .or_insert_with(|| A::new(self.capacity, self.refill_rate, now));
-
+            .or_insert_with(|| match self.algorithm {
+                AlgorithmType::TokenBucket => {
+                    Box::new(TokenBucket::new(self.capacity, self.refill_rate, now))
+                        as Box<dyn RateLimitAlgorithm>
+                }
+                AlgorithmType::SlidingLog => {
+                    Box::new(SlidingLog::new(self.capacity, self.refill_rate, now))
+                        as Box<dyn RateLimitAlgorithm>
+                }
+            });
         bucket.set_last_seen(now);
 
         match bucket.allow(now) {
