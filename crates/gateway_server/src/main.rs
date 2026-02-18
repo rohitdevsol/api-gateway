@@ -54,6 +54,7 @@ async fn main() {
 
     let algorithm = match config.algorithm.as_str() {
         "sliding_log" => AlgorithmType::SlidingLog,
+        "sliding_counter" => AlgorithmType::SlidingCounter,
         _ => AlgorithmType::TokenBucket,
     };
 
