@@ -27,7 +27,7 @@ pub struct RateLimiter<K>
 where
     K: Eq + std::hash::Hash,
 {
-    buckets: Arc<DashMap<K, Box<dyn RateLimitAlgorithm + Send + Sync>>>,
+    buckets: Arc<DashMap<K, Box<dyn RateLimitAlgorithm>>>,
     capacity: u128,
     refill_rate: u128,
     algorithm: AlgorithmType,
