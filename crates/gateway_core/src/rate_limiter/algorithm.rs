@@ -12,8 +12,7 @@ pub struct BucketState {
     pub reset_after: Duration,
 }
 
-pub trait RateLimitAlgorithm: Sized {
-    fn new(capacity: u128, refill_rate: u128, now: Instant) -> Self;
+pub trait RateLimitAlgorithm: Send + Sync {
     fn allow(&mut self, now: Instant) -> AllowResult;
     fn state(&self, now: Instant) -> BucketState;
     fn last_seen(&self) -> Instant;
