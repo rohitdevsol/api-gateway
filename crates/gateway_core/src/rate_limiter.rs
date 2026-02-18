@@ -1,5 +1,6 @@
 pub mod algorithm;
 pub mod rate_limiter;
+pub mod sliding_counter;
 pub mod sliding_log;
 pub mod token_bucket;
 pub use rate_limiter::RateLimiter;

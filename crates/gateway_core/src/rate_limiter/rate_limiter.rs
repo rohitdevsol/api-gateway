@@ -19,6 +19,7 @@ pub struct RateLimitError {
 pub enum AlgorithmType {
     TokenBucket,
     SlidingLog,
+    SlidingCounter,
 }
 
 #[derive(Clone)]
@@ -26,7 +27,7 @@ pub struct RateLimiter<K>
 where
     K: Eq + std::hash::Hash,
 {
-    buckets: Arc<DashMap<K, Box<dyn RateLimitAlgorithm>>>,
+    buckets: Arc<DashMap<K, Box<dyn RateLimitAlgorithm + Send + Sync>>>,
     capacity: u128,
     refill_rate: u128,
     algorithm: AlgorithmType,
@@ -58,7 +59,12 @@ where
                     Box::new(SlidingLog::new(self.capacity, self.refill_rate, now))
                         as Box<dyn RateLimitAlgorithm>
                 }
+                AlgorithmType::SlidingCounter => {
+                    Box::new(SlidingCounter::new(self.capacity, self.refill_rate, now))
+                        as Box<dyn RateLimitAlgorithm + Send + Sync>
+                }
             });
+
         bucket.set_last_seen(now);
 
         match bucket.allow(now) {
