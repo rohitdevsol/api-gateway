@@ -15,9 +15,6 @@ pub struct TokenBucket {
 }
 
 impl RateLimitAlgorithm for TokenBucket {
-    fn new(capacity: u128, refill_rate: u128, now: Instant) -> Self {
-        TokenBucket::new(capacity, refill_rate, now)
-    }
     fn allow(&mut self, now: Instant) -> AllowResult {
         TokenBucket::allow(self, now)
     }
