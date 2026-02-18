@@ -18,7 +18,7 @@ use axum::{
     response::IntoResponse,
     routing::{any, get},
 };
-use gateway_core::rate_limiter::{RateLimiter, TokenBucket};
+use gateway_core::rate_limiter::{RateLimiter, TokenBucket, rate_limiter::AlgorithmType};
 
 use reqwest::Client;
 use std::{
@@ -29,8 +29,6 @@ use std::{
 
 use tracing::info;
 
-type DefaultLimiter<K> = RateLimiter<K, TokenBucket>;
-
 const CLEANUP_INTERVAL: Duration = Duration::from_secs(60);
 const BUCKET_TTL: Duration = Duration::from_secs(300);
 
@@ -38,9 +36,9 @@ const BUCKET_TTL: Duration = Duration::from_secs(300);
 pub struct AppState {
     client: Client,
     config: GatewayConfig,
-    global_limiter: DefaultLimiter<()>,
-    ip_limiter: DefaultLimiter<IpAddr>,
-    route_limiter: DefaultLimiter<String>,
+    global_limiter: RateLimiter<()>,
+    ip_limiter: RateLimiter<IpAddr>,
+    route_limiter: RateLimiter<String>,
     metrics: Arc<GatewayMetrices>,
 }
 
@@ -54,18 +52,25 @@ async fn main() {
         .build()
         .unwrap();
 
+    let algorithm = match config.algorithm.as_str() {
+        "sliding_log" => AlgorithmType::SlidingLog,
+        _ => AlgorithmType::TokenBucket,
+    };
+
     let state = AppState {
         client,
         config: config.clone(),
-        global_limiter: DefaultLimiter::<()>::new(
+        global_limiter: RateLimiter::new(
             config.global_capacity,
             config.global_refill_rate,
+            algorithm.clone(),
         ),
-        route_limiter: DefaultLimiter::<String>::new(
+        route_limiter: RateLimiter::new(
             config.route_capacity,
             config.route_refill_rate,
+            algorithm.clone(),
         ),
-        ip_limiter: DefaultLimiter::<IpAddr>::new(config.ip_capacity, config.ip_refill_rate),
+        ip_limiter: RateLimiter::new(config.ip_capacity, config.ip_refill_rate, algorithm),
         metrics: metrics.clone(),
     };
 
