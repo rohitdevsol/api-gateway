@@ -1,8 +1,9 @@
-# Rate Limiting Performance: DashMap vs Mutex
+# Rate Limiting Performance: DashMap vs Mutex (Hashmap)
 
 Performance benchmark comparing `Arc<Mutex<HashMap>>` and `Arc<DashMap>` for token bucket rate limiting in a high-throughput API gateway.
 
 This benchmark was executed under two different scenarios:
+
 1. **Gateway-only** (no upstream call)
 2. **Gateway + upstream HTTP forwarding**
 
@@ -11,6 +12,7 @@ This distinction is critical because upstream I/O dramatically changes bottlenec
 ---
 
 ## Benchmark Configuration
+
 ```
 Build Mode:            cargo build --release
 Rust Version:          1.83.0
@@ -27,7 +29,7 @@ Traffic Pattern:       Multi-IP simulation
 
 ---
 
->Note: Thread count (12) slightly exceeds physical core count (10). This introduces OS-level scheduling overhead but does not affect relative comparison between implementations.
+> Note: Thread count (12) slightly exceeds physical core count (10). This introduces OS-level scheduling overhead but does not affect relative comparison between implementations.
 
 ## Scenario 1 — Gateway Only (Upstream Disabled)
 
@@ -41,19 +43,19 @@ This isolates rate limiter + routing overhead.
 
 <img width="630" height="470" alt="RPS Comparison (12 Threads, 800 Connections)" src="https://github.com/user-attachments/assets/3322403d-4a87-4cdb-9cae-afa2419e6dc7" />
 
-| Implementation | RPS |
-|----------------|-----|
-| DashMap | ~75,000 |
+| Implementation  | RPS     |
+| --------------- | ------- |
+| DashMap         | ~75,000 |
 | Mutex + HashMap | ~77,000 |
 
 ### Latency
 
 <img width="630" height="470" alt="Average Latency (ms) - 12 Threads, 800 Connections" src="https://github.com/user-attachments/assets/378efd5f-e148-44a0-9e0a-978ba1295d87" />
 
-| Metric | DashMap | Mutex + HashMap |
-|--------|---------|-----------------|
-| **Average** | ~10ms | ~10ms |
-| **p95** | ~12ms | ~12ms |
+| Metric      | DashMap | Mutex + HashMap |
+| ----------- | ------- | --------------- |
+| **Average** | ~10ms   | ~10ms           |
+| **p95**     | ~12ms   | ~12ms           |
 
 **Note:** Non-2xx responses are primarily 429 (rate limited) — intentional throttling behavior.
 
@@ -73,6 +75,7 @@ This isolates rate limiter + routing overhead.
 In this mode, the gateway forwards requests to an upstream server (httpbin).
 
 This introduces:
+
 - Network latency
 - Socket scheduling
 - TCP backpressure
@@ -87,12 +90,14 @@ This introduces:
 ### Observation
 
 When upstream I/O dominates:
+
 - Lock contention becomes statistically insignificant
 - Network latency overshadows in-memory optimization
 - DashMap advantage disappears
 - System bottleneck shifts to external I/O
 
 **Technical insight:**
+
 - DashMap improves sharded write contention
 - However, at 800 concurrent connections, upstream RTT dominated >90% of request latency
 - Lock granularity optimization provides negligible benefit when the system is I/O-bound
@@ -118,11 +123,13 @@ The right optimization depends on whether your bottleneck is CPU or I/O.
 Both approaches are production-ready.
 
 ### Mutex + HashMap
+
 - Simpler implementation
 - Fewer dependencies
 - Good enough for moderate concurrency
 
 ### DashMap
+
 - Better scalability with high key cardinality (100k+ IPs)
 - Reduced contention under heavy CPU-bound workloads
 - More future-proof for multi-tenant gateways
@@ -130,6 +137,7 @@ Both approaches are production-ready.
 ---
 
 ## How to Reproduce
+
 ```bash
 # Build release binary
 cargo build --release
@@ -142,6 +150,7 @@ wrk -t12 -c800 -d10s -s multi_ip.lua http://127.0.0.1:3000/api/anything
 ```
 
 ### Lua Script (multi_ip.lua)
+
 ```lua
 counter = 0
 request = function()
